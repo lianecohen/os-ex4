@@ -3,16 +3,21 @@
 #include "PhysicalMemory.h"
 #include <math.h>
 
-uint64_t getRelativeAddr(uint64_t virtualAddress,int x)
-{
-    return ((virtualAddress >> uint64_t(CEIL(x * log(PAGE_SIZE))))%PAGE_SIZE);
-}
+word_t getOffset(uint64_t address);
+
+uint64_t getRelativeAddr(uint64_t virtualAddress, int x);
+
+
+uint64_t findNextEmptyFrame();
+
+uint64_t helperEmptyFrame(uint64_t i);
+
 /*
  * Initialize the virtual memory.
  */
 void VMinitialize()
 {
-    for (int i = 0; i < PAGE_SIZE; i++) 
+    for (int i = 0; i < PAGE_SIZE; i++)
     {
         PMwrite(i,0);
     }
@@ -27,10 +32,32 @@ void VMinitialize()
  */
 int VMread(uint64_t virtualAddress, word_t* value)
 {
-    uint64_t addr = 0;
+    word_t addr = 0;
     for (int i = 0; i < TABLES_DEPTH; i++)
     {
-        PMread(addr * PAGE_SIZE + getRelativeAddr(virtualAddress,i));
+        PMread(addr * PAGE_SIZE + getRelativeAddr(virtualAddress,i), &addr);
+        //TODO: case addr is zero
+        if (addr == 0 and i != (TABLES_DEPTH-1))
+        {
+            //TODO: check if this is the right not-end-iteration
+            uint64_t frameAddr = findNextEmptyFrame();
+        }
+    }
+    PMread(addr + getOffset(virtualAddress), value);
+
+}
+
+uint64_t findNextEmptyFrame()
+{
+    return helperEmptyFrame(static_cast<uint64_t>(0));
+}
+
+uint64_t helperEmptyFrame(uint64_t x)
+{
+    uint64_t max = 0;
+    for (int i = 0; i < PAGE_SIZE; i++)
+    {
+
     }
 }
 
@@ -44,4 +71,19 @@ int VMwrite(uint64_t virtualAddress, word_t value)
 {
 
 }
+
+
+word_t getOffset(uint64_t address)
+{
+    return word_t(address % (1 << OFFSET_WIDTH));
+}
+
+uint64_t getRelativeAddr(uint64_t virtualAddress, int x)
+{
+    return ((virtualAddress >> uint64_t(VIRTUAL_ADDRESS_WIDTH - CEIL(x * log(PAGE_SIZE))))%PAGE_SIZE);
+}
+
+
+
+
 
