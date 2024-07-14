@@ -2,15 +2,79 @@
 #include "VirtualMemory.h"
 #include "PhysicalMemory.h"
 #include <math.h>
+#include <algorithm>
 
 word_t getOffset(uint64_t address);
 
 uint64_t getRelativeAddr(uint64_t virtualAddress, int x);
 
 
-uint64_t findNextEmptyFrame();
+int findNextEmptyFrame(int addr, int max, int dep)
+{
+  if (dep == TABLES_DEPTH-1)
+  {
+    return std::max(addr, max);
+  }
+  word_t val;
+  for (int i = 0; i < PAGE_SIZE; i++)
+  {
+    PMread(addr*PAGE_SIZE + i, &val);
+    if (val != 0)
+    {
+      max = std::max(max, findNextEmptyFrame(val/PAGE_SIZE,std::max(addr,max),dep+1));
+    }
+  }
+  return std::max(addr,max);
+}
 
-uint64_t helperEmptyFrame(uint64_t i);
+int findUnusedFrame(int addr, int min, int dep)
+{
+  word_t val;
+  bool allZero = true;
+  for (int i = 0; i < PAGE_SIZE; i++)
+  {
+    PMread(addr*PAGE_SIZE + i, &val);
+    if (val != 0)
+    {
+      allZero = false;
+    }
+  }
+  if (allZero)
+  {
+    return addr;
+  }
+  if (dep == TABLES_DEPTH-1)
+  {
+    return NUM_FRAMES;
+  }
+  for (int i = 0; i < PAGE_SIZE; i++)
+  {
+    PMread(addr*PAGE_SIZE + i, &val);
+    if (val != 0)
+    {
+      min = std::min(findUnusedFrame (val/PAGE_SIZE,min,dep+1),min);
+    }
+  }
+  return min;
+}
+
+void removeRefrenceToFrame(int addr,int frameNum)
+{
+  word_t val;
+  for (int i = 0; i < PAGE_SIZE; i++)
+  {
+    PMread(addr*PAGE_SIZE + i, &val);
+    if (val == frameNum)
+    {
+      PMwrite (addr*PAGE_SIZE + i, 0);
+      break;
+    }
+    else
+    {
+      removeRefrenceToFrame (val*PAGE_SIZE, frameNum);
+    }
+  }
+}
 
 /*
  * Initialize the virtual memory.
@@ -33,33 +97,50 @@ void VMinitialize()
 int VMread(uint64_t virtualAddress, word_t* value)
 {
     word_t addr = 0;
+    word_t lastAddr;
     for (int i = 0; i < TABLES_DEPTH; i++)
     {
+        lastAddr = addr;
         PMread(addr * PAGE_SIZE + getRelativeAddr(virtualAddress,i), &addr);
         //TODO: case addr is zero
         if (addr == 0 and i != (TABLES_DEPTH-1))
         {
             //TODO: check if this is the right not-end-iteration
-            uint64_t frameAddr = findNextEmptyFrame();
+
+            //check if there is empty table
+            int frameNum = findUnusedFrame(0,NUM_FRAMES,0);
+            if (frameNum != NUM_FRAMES && frameNum != 0)
+            {
+              //set the new frame
+              removeRefrenceToFrame(0,frameNum);
+              PMwrite (addr * PAGE_SIZE + getRelativeAddr(virtualAddress,i),frameNum);
+            }
+            else
+            {
+              frameNum = findNextEmptyFrame (0,0,0);
+              if (frameNum + 1 < NUM_FRAMES)
+              {
+                PMwrite (addr * PAGE_SIZE + getRelativeAddr(virtualAddress,
+                                                            i),frameNum+1);
+                //TODO: zero the new frame, frameNum+1
+              }
+            }
         }
     }
     PMread(addr + getOffset(virtualAddress), value);
 
 }
 
-uint64_t findNextEmptyFrame()
-{
-    return helperEmptyFrame(static_cast<uint64_t>(0));
-}
 
-uint64_t helperEmptyFrame(uint64_t x)
-{
-    uint64_t max = 0;
-    for (int i = 0; i < PAGE_SIZE; i++)
-    {
 
-    }
-}
+//uint64_t helperEmptyFrame(uint64_t x)
+//{
+//    uint64_t max = 0;
+//    for (int i = 0; i < PAGE_SIZE; i++)
+//    {
+//
+//    }
+//}
 
 /* Writes a word to the given virtual address.
  *
