@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
-project(os-ex4)
+project(ex4os)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(os-ex4 PhysicalMemory.cpp VirtualMemory.cpp)
+add_executable(ex4os PhysicalMemory.cpp SimpleTest.cpp VirtualMemory.cpp)

@@ -134,8 +134,7 @@ int VMread(uint64_t virtualAddress, word_t* value)
         }
     }
     // supposed to bring it from the memory first and than read it
-    uint64_t pageNum = getPage(virtualAddress);
-    PMrestore(addr, pageNum);
+    PMrestore(addr, getPage(virtualAddress));
     PMread(addr + getOffset(virtualAddress), value);
 
 }
