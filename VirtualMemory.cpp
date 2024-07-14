@@ -9,71 +9,73 @@ word_t getOffset(uint64_t address);
 uint64_t getRelativeAddr(uint64_t virtualAddress, int x);
 
 
+uint64_t getPage(uint64_t address);
+
 int findNextEmptyFrame(int addr, int max, int dep)
 {
-  if (dep == TABLES_DEPTH-1)
-  {
-    return std::max(addr, max);
-  }
-  word_t val;
-  for (int i = 0; i < PAGE_SIZE; i++)
-  {
-    PMread(addr*PAGE_SIZE + i, &val);
-    if (val != 0)
+    if (dep == TABLES_DEPTH-1)
     {
-      max = std::max(max, findNextEmptyFrame(val/PAGE_SIZE,std::max(addr,max),dep+1));
+        return std::max(addr, max);
     }
-  }
-  return std::max(addr,max);
+    word_t val;
+    for (int i = 0; i < PAGE_SIZE; i++)
+    {
+        PMread(addr*PAGE_SIZE + i, &val);
+        if (val != 0)
+        {
+            max = std::max(max, findNextEmptyFrame(val/PAGE_SIZE,std::max(addr,max),dep+1));
+        }
+    }
+    return std::max(addr,max);
 }
 
 int findUnusedFrame(int addr, int min, int dep)
 {
-  word_t val;
-  bool allZero = true;
-  for (int i = 0; i < PAGE_SIZE; i++)
-  {
-    PMread(addr*PAGE_SIZE + i, &val);
-    if (val != 0)
+    word_t val;
+    bool allZero = true;
+    for (int i = 0; i < PAGE_SIZE; i++)
     {
-      allZero = false;
+        PMread(addr*PAGE_SIZE + i, &val);
+        if (val != 0)
+        {
+            allZero = false;
+        }
     }
-  }
-  if (allZero)
-  {
-    return addr;
-  }
-  if (dep == TABLES_DEPTH-1)
-  {
-    return NUM_FRAMES;
-  }
-  for (int i = 0; i < PAGE_SIZE; i++)
-  {
-    PMread(addr*PAGE_SIZE + i, &val);
-    if (val != 0)
+    if (allZero)
     {
-      min = std::min(findUnusedFrame (val/PAGE_SIZE,min,dep+1),min);
+        return addr;
     }
-  }
-  return min;
+    if (dep == TABLES_DEPTH-1)
+    {
+        return NUM_FRAMES;
+    }
+    for (int i = 0; i < PAGE_SIZE; i++)
+    {
+        PMread(addr*PAGE_SIZE + i, &val);
+        if (val != 0)
+        {
+            min = std::min(findUnusedFrame (val/PAGE_SIZE,min,dep+1),min);
+        }
+    }
+    return min;
 }
 
 void removeRefrenceToFrame(int addr,int frameNum)
 {
-  word_t val;
-  for (int i = 0; i < PAGE_SIZE; i++)
-  {
-    PMread(addr*PAGE_SIZE + i, &val);
-    if (val == frameNum)
+    word_t val;
+    for (int i = 0; i < PAGE_SIZE; i++)
     {
-      PMwrite (addr*PAGE_SIZE + i, 0);
-      break;
+        PMread(addr*PAGE_SIZE + i, &val);
+        if (val == frameNum)
+        {
+            PMwrite (addr*PAGE_SIZE + i, 0);
+            break;
+        }
+        else
+        {
+            removeRefrenceToFrame (val*PAGE_SIZE, frameNum);
+        }
     }
-    else
-    {
-      removeRefrenceToFrame (val*PAGE_SIZE, frameNum);
-    }
-  }
 }
 
 /*
@@ -111,24 +113,36 @@ int VMread(uint64_t virtualAddress, word_t* value)
             int frameNum = findUnusedFrame(0,NUM_FRAMES,0);
             if (frameNum != NUM_FRAMES && frameNum != 0)
             {
-              //set the new frame
-              removeRefrenceToFrame(0,frameNum);
-              PMwrite (addr * PAGE_SIZE + getRelativeAddr(virtualAddress,i),frameNum);
+                //set the new frame
+                removeRefrenceToFrame(0,frameNum);
+                PMwrite (lastAddr * PAGE_SIZE + getRelativeAddr(virtualAddress,i),frameNum);
             }
             else
             {
-              frameNum = findNextEmptyFrame (0,0,0);
-              if (frameNum + 1 < NUM_FRAMES)
-              {
-                PMwrite (addr * PAGE_SIZE + getRelativeAddr(virtualAddress,
-                                                            i),frameNum+1);
-                //TODO: zero the new frame, frameNum+1
-              }
+                frameNum = findNextEmptyFrame (0,0,0);
+                if (frameNum + 1 < NUM_FRAMES)
+                {
+                    PMwrite (lastAddr * PAGE_SIZE + getRelativeAddr(virtualAddress,
+                                                                    i),frameNum+1);
+                    //TODO: zero the new frame, frameNum+1
+                    for (int off = 0; off < PAGE_SIZE; ++off)
+                    {
+                        PMwrite ((frameNum+1) * PAGE_SIZE  + off,0);
+                    }
+                }
             }
         }
     }
+    // supposed to bring it from the memory first and than read it
+    uint64_t pageNum = getPage(virtualAddress);
+    PMrestore(addr, pageNum);
     PMread(addr + getOffset(virtualAddress), value);
 
+}
+
+uint64_t getPage(uint64_t address)
+{
+    return address >> OFFSET_WIDTH;
 }
 
 
