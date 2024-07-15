@@ -5,10 +5,8 @@
 #include <algorithm>
 
 word_t getOffset(uint64_t address);
-uint64_t evictFrame(uint64_t wantedPage);
+uint64_t evictPage(uint64_t wantedPage);
 uint64_t getRelativeAddr(uint64_t virtualAddress, int x);
-
-
 uint64_t getPage(uint64_t address);
 
 int findNextEmptyFrame(int addr, int max, int dep)
@@ -29,7 +27,7 @@ int findNextEmptyFrame(int addr, int max, int dep)
     return std::max(addr,max);
 }
 
-int findFrame(int addr, int page, int dep) {
+int findFrame(int addr, uint64_t page, int dep) {
     word_t val;
 
     if (dep == TABLES_DEPTH-1) {
@@ -104,6 +102,28 @@ void removeRefrenceToFrame(int addr,int frameNum)
         }
     }
 }
+uint64_t getPage(uint64_t address)
+{
+    return address >> OFFSET_WIDTH;
+}
+uint64_t evictPage(uint64_t wantedPage)
+{
+    int max = 0;
+    uint64_t relatedPage;
+
+    for (int i = 0; i < NUM_PAGES; ++i)
+    {
+        //check to any page that is mapped to the frame what cycle
+        if(findFrame(0,i,0) > 0) {
+            if(max == std::max(max,std::min(static_cast<int>(NUM_PAGES - wantedPage-i), static_cast<int>(wantedPage-i))))
+            {
+                relatedPage = i;
+            }
+        }
+    }
+    // find the frame related to the page we would like to remove
+    return relatedPage;
+}
 
 /*
  * Initialize the virtual memory.
@@ -156,10 +176,10 @@ int VMread(uint64_t virtualAddress, word_t* value)
                         PMwrite ((frameNum+1) * PAGE_SIZE  + off,0);
                     }
                 }
-                // in case that all of the frames are full, we would check which table we should remove
+                    // in case that all of the frames are full, we would check which table we should remove
                 else {
-                    //todo:: find the frame that connected to the relevant page.
-                    uint64_t page = evictFrame(getPage(virtualAddress));
+                    //find the frame that connected to the relevant page.
+                    uint64_t page = evictPage(getPage(virtualAddress));
                     int newFrame = findFrame(0,page,0);
                     PMevict(newFrame,page);
                     removeRefrenceToFrame(0,newFrame);
@@ -181,31 +201,10 @@ int VMread(uint64_t virtualAddress, word_t* value)
     PMread(addr + getOffset(virtualAddress), value);
 
 }
-uint64_t evictPage(uint64_t wantedPage)
-{
-    int max = 0;
-    uint64_t relatedPage;
-    word_t val;
-    uint64_t addr = 0;
-    for (int i = 0; i < NUM_PAGES; ++i)
-    {
-        //check to any page that is mapped to the frame what cycle
-        if(findFrame(0,i,0) > 0) {
-            if(max == std::max(max,std::min(static_cast<int>(NUM_PAGES - wantedPage-i), static_cast<int>(wantedPage-i))))
-            {
-                relatedPage = i;
-            }
-        }
-    }
-    // find the frame related to the page we would like to remove
-    return relatedPage;
-}
 
 
-uint64_t getPage(uint64_t address)
-{
-    return address >> OFFSET_WIDTH;
-}
+
+
 
 
 
